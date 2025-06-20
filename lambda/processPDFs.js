@@ -116,10 +116,10 @@ export const handler = async (event) => {
       };
     }
 
-    console.log(`Found ${uniqueLinks.length} unique PDF links`);
+    // Process PDFs (increased limit to handle more files)
+    const maxPDFs = Math.min(uniqueLinks.length, 50); // Increased from 10 to 50
 
-    // Process PDFs (limit to 10 to avoid Lambda timeout)
-    const maxPDFs = Math.min(uniqueLinks.length, 10);
+    console.log(`Found ${uniqueLinks.length} unique PDF links, processing up to ${maxPDFs}`);
     const results = [];
     const errors = [];
 
@@ -128,15 +128,15 @@ export const handler = async (event) => {
       try {
         console.log(`Processing PDF ${i + 1}/${maxPDFs}: ${pdfLink.url}`);
 
-        // Download PDF with timeout
+        // Download PDF with timeout and size limit
         const pdfResponse = await axios.get(pdfLink.url, {
           responseType: 'arraybuffer',
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; NCDHHS-PDF-Downloader/1.0)',
             'Accept': 'application/pdf,*/*'
           },
-          timeout: 45000, // 45 seconds for large PDFs
-          maxContentLength: 50 * 1024 * 1024 // 50MB max file size
+          timeout: 30000, // Reduced to 30 seconds per PDF
+          maxContentLength: 25 * 1024 * 1024 // Reduced to 25MB max file size
         });
 
         // Verify it's actually a PDF
