@@ -1,0 +1,17 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "No build dependencies needed for static HTML"
+    build:
+      commands:
+        - echo "Using static HTML - no build required"
+        - cp public/index.html index.html
+  artifacts:
+    baseDirectory: .
+    files:
+      - index.html
+      - '**/*.html'
+      - '**/*.css'
+      - '**/*.js'

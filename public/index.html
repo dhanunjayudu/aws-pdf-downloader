@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCDHHS RAG System - Policy Assistant</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        input[type="text"] { width: 70%; padding: 10px; margin: 10px 0; }
+        button { padding: 10px 20px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .response { background: white; padding: 15px; margin: 15px 0; border-left: 4px solid #007cba; white-space: pre-wrap; }
+        .sources { background: #e8f4f8; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .loading { color: #666; font-style: italic; }
+        .error { color: #d32f2f; background: #ffebee; padding: 10px; border-radius: 4px; }
+        .success { color: #2e7d32; }
+        .demo-queries { background: #fff3e0; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        .demo-query { background: #e3f2fd; padding: 8px; margin: 5px 0; border-radius: 4px; cursor: pointer; }
+        .demo-query:hover { background: #bbdefb; }
+    </style>
+</head>
+<body>
+    <h1>🏛️ NCDHHS Policy Assistant</h1>
+    <p><strong>Intelligent Q&A System for North Carolina Child Welfare Services Policies</strong></p>
+    
+    <div class="container">
+        <h3>Ask a Policy Question</h3>
+        <input type="text" id="query" placeholder="Example: What are the CPS assessment timeline requirements?" />
+        <button onclick="askQuestion()">Ask Question</button>
+        
+        <div class="demo-queries">
+            <h4>📋 Try These Sample Questions:</h4>
+            <div class="demo-query" onclick="setQuery('What are the CPS assessment procedures?')">
+                What are the CPS assessment procedures?
+            </div>
+            <div class="demo-query" onclick="setQuery('What are the adoption requirements?')">
+                What are the adoption requirements?
+            </div>
+            <div class="demo-query" onclick="setQuery('What are the safe sleep guidelines?')">
+                What are the safe sleep guidelines?
+            </div>
+            <div class="demo-query" onclick="setQuery('What services are available for families?')">
+                What services are available for families?
+            </div>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            🤖 Processing your question...
+        </div>
+        
+        <div id="response" class="response" style="display: none;"></div>
+        <div id="sources" class="sources" style="display: none;"></div>
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <div class="container">
+        <h3>🎯 System Capabilities</h3>
+        <ul>
+            <li><strong>CPS Assessment Guidance</strong> - Timeline requirements, procedures, documentation</li>
+            <li><strong>Adoption Services</strong> - Requirements, processes, legal procedures</li>
+            <li><strong>Safe Sleep Policies</strong> - SIDS prevention, caregiver education</li>
+            <li><strong>General Child Welfare</strong> - Services, resources, best practices</li>
+        </ul>
+        
+        <h3>📊 System Status</h3>
+        <div class="success">
+            ✅ RAG System: Operational<br>
+            ✅ API Endpoints: Active<br>
+            ✅ Document Library: 52 PDFs in 8 sections<br>
+            ✅ Response Time: ~1-2 seconds<br>
+            💡 Using intelligent mock responses (Bedrock integration pending)
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://cqdhmncpzi.execute-api.us-east-1.amazonaws.com/prod';
+        
+        function setQuery(question) {
+            document.getElementById('query').value = question;
+        }
+        
+        async function askQuestion() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) {
+                showError('Please enter a question');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('response').style.display = 'none';
+            document.getElementById('sources').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/rag-query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        userId: 'demo-user',
+                        sessionId: 'demo-session-' + Date.now()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResponse(data.response, data.sources, data.note);
+                } else {
+                    showError('Error: ' + (data.error || 'Unknown error occurred'));
+                }
+                
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        function showResponse(response, sources, note) {
+            document.getElementById('response').innerHTML = response;
+            document.getElementById('response').style.display = 'block';
+            
+            if (sources && sources.length > 0) {
+                let sourcesHtml = '<h4>📚 Sources Referenced:</h4>';
+                sources.forEach(source => {
+                    sourcesHtml += `
+                        <div style="margin: 8px 0; padding: 8px; background: white; border-radius: 4px;">
+                            <strong>${source.filename}</strong> (${source.section})<br>
+                            <small>Relevance: ${Math.round(source.relevanceScore * 100)}% | ${source.excerpt}</small>
+                        </div>
+                    `;
+                });
+                if (note) {
+                    sourcesHtml += `<div style="margin-top: 10px; font-style: italic; color: #666;">${note}</div>`;
+                }
+                document.getElementById('sources').innerHTML = sourcesHtml;
+                document.getElementById('sources').style.display = 'block';
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('error').innerHTML = message;
+            document.getElementById('error').style.display = 'block';
+        }
+        
+        // Allow Enter key to submit
+        document.getElementById('query').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                askQuestion();
+            }
+        });
+    </script>
+</body>
+</html>
