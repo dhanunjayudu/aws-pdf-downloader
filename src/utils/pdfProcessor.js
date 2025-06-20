@@ -1,36 +1,30 @@
-// PDF Processing utility - Phase 2 Backend Integration
+// PDF Processing utility - Real Backend Integration
 import axios from 'axios';
 
-const API_BASE_URL = 'https://your-api-gateway-url.amazonaws.com/dev'; // Will be updated with actual API
+const API_BASE_URL = 'https://cqdhmncpzi.execute-api.us-east-1.amazonaws.com/prod';
 
 export const processPDFs = async (url, onProgress) => {
   try {
     onProgress('Connecting to backend service...');
     
-    // For now, let's create a mock implementation that actually scrapes the website
-    // This will be replaced with Lambda function call later
-    const response = await fetch('/api/process-pdfs', {
-      method: 'POST',
+    const response = await axios.post(`${API_BASE_URL}/process-pdfs`, {
+      url: url
+    }, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ url })
+      timeout: 900000 // 15 minutes to match Lambda timeout
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-    return result;
+    return response.data;
     
   } catch (error) {
     console.error('PDF processing error:', error);
-    throw error;
+    throw new Error(error.response?.data?.error || error.message);
   }
 };
 
-// Mock function for demonstration - will be replaced with real API
+// Keep mock function for comparison
 export const mockProcessPDFs = async (url, onProgress) => {
   onProgress('Scanning website for PDF links...');
   await new Promise(resolve => setTimeout(resolve, 1000));

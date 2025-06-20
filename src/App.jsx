@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { mockProcessPDFs } from './utils/pdfProcessor'
+import { processPDFs } from './utils/pdfProcessor'
 import './App.css'
 
 function App() {
@@ -17,8 +17,8 @@ function App() {
       setResults(null)
       setProgress('')
       
-      // Use mock function for now - will be replaced with real API
-      const result = await mockProcessPDFs(URL, (progressMessage) => {
+      // Use real API now!
+      const result = await processPDFs(URL, (progressMessage) => {
         setProgress(progressMessage)
       })
       
@@ -131,7 +131,7 @@ function App() {
 
       <footer>
         <p>Target URL: <a href={URL} target="_blank" rel="noopener noreferrer">{URL}</a></p>
-        <p>Powered by AWS Amplify (Demo mode - showing simulated results)</p>
+        <p>Powered by AWS Amplify + Lambda + S3 (Real backend active!)</p>
       </footer>
     </div>
   )

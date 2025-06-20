@@ -27,11 +27,9 @@ REGION="us-east-1"
 echo "📋 AWS Account: $ACCOUNT_ID"
 echo "📋 Region: $REGION"
 
-# Create S3 bucket for PDFs (if it doesn't exist)
-BUCKET_NAME="ncdhhs-pdf-storage-$ACCOUNT_ID"
-echo "🪣 Creating S3 bucket: $BUCKET_NAME"
-
-aws s3 mb s3://$BUCKET_NAME --region $REGION 2>/dev/null || echo "Bucket already exists or creation failed"
+# Use existing S3 bucket
+BUCKET_NAME="ncdhhs-cwis-policy-manuals"
+echo "🪣 Using existing S3 bucket: $BUCKET_NAME"
 
 # Create IAM role for Lambda
 echo "🔐 Creating IAM role for Lambda..."
