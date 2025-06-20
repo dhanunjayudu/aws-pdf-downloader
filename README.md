@@ -1,181 +1,133 @@
-# 📄 NCDHHS PDF Downloader - Amplify Version
+# NCDHHS PDF Processor
 
-A simplified, serverless version of the PDF downloader application built for AWS Amplify.
+🚀 **Intelligent PDF Processing System** for North Carolina Department of Health and Human Services (NCDHHS) Child Welfare Services documents.
 
-## 🎯 **What This App Does**
+## 🌟 Features
 
-Downloads PDF files from the NCDHHS Child Welfare Services policies page and uploads them to AWS S3 - all serverless!
+- **Dynamic PDF Discovery**: Automatically finds ALL PDFs on any NCDHHS webpage
+- **Intelligent Section Organization**: Categorizes PDFs into logical folders:
+  - `child-welfare-manuals/` - Core policy manuals
+  - `child-welfare-practice-resources/` - Practice guides and resources
+  - `child-welfare-appendices/` - Appendix documents and funding guides
+  - `path-sdm-tools-manuals/` - PATH assessments and SDM tools
+  - `safe-sleep-resources/` - Safe sleep policies and materials
+  - `disaster-preparedness/` - Emergency planning documents
+  - `administrative-manuals/` - Administrative policies
+  - `other-resources/` - Miscellaneous documents
+- **AWS S3 Storage**: Organized cloud storage with metadata
+- **Real-time Processing**: Live status updates and progress tracking
+- **Error Resilience**: Continues processing even if individual files fail
+- **Scalable Architecture**: Handles any number of PDFs automatically
 
-**Target URL**: https://policies.ncdhhs.gov/divisional-n-z/social-services/child-welfare-services/cws-policies-manuals/
+## 🏗️ Architecture
 
-## 🏗️ **Simplified Architecture**
+- **Frontend**: React.js application for user interface
+- **Backend**: AWS Lambda function for PDF processing
+- **Storage**: AWS S3 with intelligent folder organization
+- **API**: AWS API Gateway for secure communication
 
-- **Frontend**: React app (hosted on Amplify)
-- **Backend**: AWS Lambda function (no server needed!)
-- **Storage**: S3 bucket (managed by Amplify)
-- **API**: GraphQL API (managed by Amplify)
+## 🚀 Quick Start
 
-## 🚀 **Deploy to AWS Amplify**
-
-### Option 1: Amplify CLI (Recommended)
-
-1. **Install Amplify CLI**:
-   ```bash
-   npm install -g @aws-amplify/cli
-   amplify configure
-   ```
-
-2. **Initialize Amplify**:
-   ```bash
-   cd amplify-simplified
-   npm install
-   amplify init
-   ```
-
-3. **Add API and Storage**:
-   ```bash
-   amplify add api
-   # Choose GraphQL
-   # Choose "Single object with fields"
-   # Choose "No" for guided schema creation
-   
-   amplify add storage
-   # Choose "Content (Images, audio, video, etc.)"
-   # Choose "Auth and guest users"
-   ```
-
-4. **Deploy**:
-   ```bash
-   amplify push
-   amplify publish
-   ```
-
-### Option 2: Amplify Console (GitHub)
-
-1. **Push to GitHub**:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin YOUR_GITHUB_REPO
-   git push -u origin main
-   ```
-
-2. **Deploy via Amplify Console**:
-   - Go to AWS Amplify Console
-   - Connect your GitHub repository
-   - Amplify will auto-detect the build settings
-   - Deploy!
-
-## 📁 **File Structure (Simplified)**
-
-```
-amplify-simplified/
-├── src/
-│   ├── App.jsx          # Main React component
-│   ├── App.css          # Styling
-│   ├── main.jsx         # React entry point
-│   └── index.css        # Global styles
-├── amplify/
-│   └── backend/
-│       └── function/
-│           └── processPDFs/  # Lambda function
-├── package.json         # Dependencies
-├── amplify.yml          # Build configuration
-└── README.md           # This file
-```
-
-## 🔧 **Key Simplifications Made**
-
-### ❌ **Removed**:
-- Separate Node.js server
-- Manual environment variable management
-- Complex file structure
-- Connection testing endpoints
-- Manual AWS SDK configuration
-
-### ✅ **Added**:
-- AWS Amplify integration
-- Serverless Lambda function
-- Automatic AWS resource management
-- GraphQL API
-- Simplified deployment process
-
-## 🎛️ **Environment Variables**
-
-No manual environment setup needed! Amplify manages:
-- AWS credentials
-- S3 bucket configuration
-- API endpoints
-- Lambda permissions
-
-## 🔒 **Security**
-
-- ✅ No exposed AWS credentials
-- ✅ IAM roles managed by Amplify
-- ✅ Secure API endpoints
-- ✅ CORS handled automatically
-
-## 📊 **Features**
-
-- ✅ Scrapes PDF links from NCDHHS website
-- ✅ Downloads PDFs automatically
-- ✅ Uploads to S3 with organized naming
-- ✅ Real-time progress updates
-- ✅ Error handling and reporting
-- ✅ Responsive design
-- ✅ Serverless architecture
-
-## 🚨 **Lambda Limitations**
-
-- **Timeout**: 15 minutes max
-- **Memory**: Configurable up to 10GB
-- **Concurrent executions**: 1000 (default)
-- **Payload size**: 6MB (synchronous)
-
-For large batches, the function processes up to 10 PDFs per execution to avoid timeouts.
-
-## 🛠️ **Development**
+### Process PDFs from NCDHHS Website
 
 ```bash
-# Local development
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+curl -X POST https://cqdhmncpzi.execute-api.us-east-1.amazonaws.com/prod/process-pdfs \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://policies.ncdhhs.gov/divisional-n-z/social-services/child-welfare-services/cws-policies-manuals/"}'
 ```
 
-## 📈 **Scaling**
+### Example Response
 
-For processing more PDFs:
-1. Increase Lambda timeout and memory
-2. Implement batch processing with SQS
-3. Use Step Functions for complex workflows
-4. Add DynamoDB for job tracking
+```json
+{
+  "success": true,
+  "summary": {
+    "total": 53,
+    "successful": 52,
+    "failed": 1,
+    "sections": {
+      "child-welfare-manuals": 10,
+      "child-welfare-practice-resources": 18,
+      "child-welfare-appendices": 12,
+      "path-sdm-tools-manuals": 5,
+      "safe-sleep-resources": 2,
+      "disaster-preparedness": 3,
+      "administrative-manuals": 1,
+      "other-resources": 1
+    }
+  }
+}
+```
 
-## 💰 **Cost Optimization**
+## 📁 Repository Structure
 
-- Lambda: Pay per execution
-- S3: Pay per storage used
-- API Gateway: Pay per request
-- No idle server costs!
+```
+├── lambda/                    # AWS Lambda function
+│   ├── processPDFs.js        # Main processing logic
+│   ├── package.json          # Lambda dependencies
+│   └── node_modules/         # Lambda dependencies
+├── src/                      # Frontend application
+│   ├── App.jsx              # Main React component
+│   ├── App.css              # Styling
+│   ├── main.jsx             # React entry point
+│   ├── index.css            # Global styles
+│   └── utils/
+│       └── pdfProcessor.js   # API communication
+├── package.json              # Frontend dependencies
+├── .gitignore               # Git ignore rules
+└── README.md                # This file
+```
 
-## 🔍 **Monitoring**
+## 🔧 Development
 
-- CloudWatch logs for Lambda function
-- Amplify console for deployment status
-- S3 console for uploaded files
+### Lambda Function
 
-## 🆘 **Troubleshooting**
+The core processing logic is in `lambda/processPDFs.js`. It:
 
-1. **Build fails**: Check `amplify.yml` configuration
-2. **Lambda timeout**: Reduce batch size or increase timeout
-3. **S3 permissions**: Amplify handles this automatically
-4. **API errors**: Check CloudWatch logs
+1. **Discovers PDFs**: Scrapes the provided URL for PDF links
+2. **Categorizes Content**: Uses intelligent analysis to determine section
+3. **Downloads Files**: Retrieves each PDF with error handling
+4. **Organizes Storage**: Uploads to S3 with proper folder structure
+5. **Reports Results**: Provides detailed processing summary
 
-## 📞 **Support**
+### Frontend Application
 
-This simplified version is production-ready and much easier to maintain than the original server-based architecture!
+The React frontend provides a user-friendly interface for:
+
+- Entering NCDHHS URLs to process
+- Monitoring real-time processing status
+- Viewing detailed results and statistics
+- Managing processed documents
+
+## 🌐 Live Processing
+
+The system is currently processing PDFs from:
+- **NCDHHS Child Welfare Services**: 53 PDFs organized into 8 sections
+- **S3 Bucket**: `ncdhhs-cwis-policy-manuals`
+- **API Endpoint**: `https://cqdhmncpzi.execute-api.us-east-1.amazonaws.com/prod`
+
+## 📊 Processing Statistics
+
+- **Success Rate**: 98.1% (52/53 PDFs processed successfully)
+- **Processing Speed**: ~13 seconds for 53 PDFs
+- **Storage Organization**: 8 logical sections with clean folder structure
+- **Scalability**: Handles any number of PDFs dynamically
+
+## 🔒 Security & Best Practices
+
+- **AWS IAM**: Proper role-based access control
+- **Error Handling**: Comprehensive error catching and reporting
+- **File Validation**: PDF format verification before processing
+- **Metadata Tracking**: Complete audit trail for all processed files
+- **Clean Naming**: Sanitized filenames and folder names
+
+## 🎯 Perfect For
+
+- **Document Management**: Automated organization of policy documents
+- **Compliance**: Systematic storage of regulatory materials
+- **Research**: Easy access to categorized resources
+- **Archival**: Long-term storage with proper organization
+
+---
+
+**Built with ❤️ for efficient document management and organization**

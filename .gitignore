@@ -45,3 +45,23 @@ amplifytools.xcconfig
 # OS
 .DS_Store
 Thumbs.db
+
+# Deployment artifacts
+lambda-deployment.zip
+*.zip
+
+# Documentation (keep only README.md)
+DEPLOY_GUIDE.md
+PHASE2_BACKEND.md
+REAL_BACKEND_SETUP.md
+SIMPLE_DEPLOY.md
+TROUBLESHOOTING.md
+
+# Build and deployment scripts
+deploy.sh
+deploy-lambda.sh
+
+# Frontend build config (not needed for Lambda-only project)
+vite.config.js
+index.html
+amplify.yml
