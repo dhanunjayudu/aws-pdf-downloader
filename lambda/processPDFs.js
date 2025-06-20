@@ -2,6 +2,9 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
+// Import mock RAG processor for demonstration
+import { handler as mockRagHandler } from './mockRag.js';
+
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 
 const sanitizeFilename = (filename) => {
@@ -88,171 +91,28 @@ const uploadToS3 = async (buffer, filename, section) => {
 };
 
 export const handler = async (event) => {
-  console.log('Processing PDFs from NCDHHS website with section-based organization...');
+  console.log('NCDHHS Lambda Handler - Processing request...');
+  console.log('Event:', JSON.stringify(event, null, 2));
   
   try {
-    const { url } = JSON.parse(event.body);
+    const { httpMethod, path } = event;
     
-    if (!url) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify({ success: false, error: 'URL is required' })
-      };
+    // Route to RAG processor for AI-related endpoints
+    if (path && (path.includes('rag-query') || path.includes('feedback') || 
+                 path.includes('refine-response') || path.includes('generate-embeddings'))) {
+      console.log('Routing to Mock RAG processor...');
+      return await mockRagHandler(event);
     }
-
-    console.log(`Starting PDF processing for: ${url}`);
-
-    const response = await axios.get(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NCDHHS-PDF-Downloader/1.0)' },
-      timeout: 30000
-    });
-
-    const $ = cheerio.load(response.data);
-    const pdfLinks = [];
-
-    // Find all PDF links and capture surrounding context for better categorization
-    $('a[href$=".pdf"], a[href*=".pdf"]').each((index, element) => {
-      const href = $(element).attr('href');
-      const text = $(element).text().trim();
-      
-      if (href) {
-        let fullUrl = href;
-        if (href.startsWith('/')) {
-          const baseUrl = new URL(url);
-          fullUrl = `${baseUrl.protocol}//${baseUrl.host}${href}`;
-        } else if (!href.startsWith('http')) {
-          fullUrl = new URL(href, url).href;
-        }
-        
-        // Get surrounding context for better categorization
-        const parentElement = $(element).parent();
-        const nearbyText = parentElement.text() + ' ' + parentElement.prev().text() + ' ' + parentElement.next().text();
-        
-        // Find the nearest heading for context
-        let sectionHeading = '';
-        const headings = parentElement.prevAll('h1, h2, h3, h4, h5, h6').first();
-        if (headings.length > 0) {
-          sectionHeading = headings.text().trim();
-        }
-        
-        pdfLinks.push({
-          url: fullUrl,
-          text: text || 'PDF Document',
-          nearbyText: nearbyText,
-          sectionHeading: sectionHeading
-        });
-      }
-    });
-
-    // Remove duplicates based on URL
-    const uniqueLinks = pdfLinks.filter((link, index, self) => 
-      index === self.findIndex(l => l.url === link.url)
-    );
-
-    if (uniqueLinks.length === 0) {
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify({
-          success: true,
-          summary: { total: 0, successful: 0, failed: 0, sections: {} },
-          results: [],
-          message: 'No PDF links found on the specified page'
-        })
-      };
+    
+    // Original PDF processing functionality
+    if (httpMethod === 'POST' && (path === '/process-pdfs' || !path)) {
+      return await handlePdfProcessing(event);
     }
-
-    console.log(`Found ${uniqueLinks.length} unique PDF links - organizing by sections`);
-
-    const results = [];
-    const errors = [];
-    const sectionCounts = {};
-
-    // Process ALL PDFs with section-based organization
-    for (let i = 0; i < uniqueLinks.length; i++) {
-      const pdfLink = uniqueLinks[i];
-      try {
-        console.log(`Processing PDF ${i + 1}/${uniqueLinks.length}: ${pdfLink.url}`);
-
-        // Generate filename from URL
-        const urlParts = pdfLink.url.split('/');
-        let originalFilename = urlParts[urlParts.length - 1];
-        
-        if (!originalFilename || !originalFilename.includes('.pdf')) {
-          originalFilename = `${sanitizeFilename(pdfLink.text || 'document')}.pdf`;
-        }
-
-        // Categorize the PDF based on content and context
-        const section = categorizeSection(pdfLink.text, pdfLink.url, pdfLink.nearbyText + ' ' + pdfLink.sectionHeading);
-        
-        // Track section counts
-        sectionCounts[section] = (sectionCounts[section] || 0) + 1;
-
-        // Download PDF
-        const pdfResponse = await axios.get(pdfLink.url, {
-          responseType: 'arraybuffer',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; NCDHHS-PDF-Downloader/1.0)',
-            'Accept': 'application/pdf,*/*'
-          },
-          timeout: 30000,
-          maxContentLength: 50 * 1024 * 1024
-        });
-
-        // Verify it's a PDF
-        const contentType = pdfResponse.headers['content-type'] || '';
-        const buffer = Buffer.from(pdfResponse.data);
-        
-        if (!contentType.includes('pdf') && !buffer.toString('hex', 0, 4) === '25504446') {
-          throw new Error(`Invalid file type. Expected PDF, got: ${contentType}`);
-        }
-
-        // Upload to S3 with section-based organization
-        const uploadResult = await uploadToS3(buffer, originalFilename, section);
-
-        results.push({
-          originalUrl: pdfLink.url,
-          filename: originalFilename,
-          linkText: pdfLink.text,
-          section: section,
-          s3Key: uploadResult.key,
-          size: buffer.length,
-          contentType: contentType,
-          timestamp: new Date().toISOString()
-        });
-
-        console.log(`✅ Successfully processed PDF ${i + 1}/${uniqueLinks.length}: ${originalFilename} → ${section}/`);
-
-      } catch (error) {
-        console.error(`❌ Error processing PDF ${i + 1}/${uniqueLinks.length}:`, error.message);
-        errors.push({
-          url: pdfLink.url,
-          linkText: pdfLink.text,
-          error: error.message
-        });
-      }
-    }
-
-    console.log(`Process completed: ${results.length}/${uniqueLinks.length} PDFs successfully organized into sections`);
-    console.log('Section distribution:', sectionCounts);
-
+    
     return {
-      statusCode: 200,
+      statusCode: 404,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({
-        success: true,
-        summary: {
-          total: uniqueLinks.length,
-          successful: results.length,
-          failed: errors.length,
-          sections: sectionCounts
-        },
-        results: results,
-        errors: errors.length > 0 ? errors : undefined,
-        processedFrom: url,
-        timestamp: new Date().toISOString()
-      })
+      body: JSON.stringify({ success: false, error: 'Endpoint not found' })
     };
 
   } catch (error) {
@@ -268,4 +128,172 @@ export const handler = async (event) => {
       })
     };
   }
+};
+
+const handlePdfProcessing = async (event) => {
+  console.log('Processing PDFs from NCDHHS website with section-based organization...');
+  
+  const { url } = JSON.parse(event.body);
+  
+  if (!url) {
+    return {
+      statusCode: 400,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ success: false, error: 'URL is required' })
+    };
+  }
+
+  console.log(`Starting PDF processing for: ${url}`);
+
+  const response = await axios.get(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NCDHHS-PDF-Downloader/1.0)' },
+    timeout: 30000
+  });
+
+  const $ = cheerio.load(response.data);
+  const pdfLinks = [];
+
+  // Find all PDF links and capture surrounding context for better categorization
+  $('a[href$=".pdf"], a[href*=".pdf"]').each((index, element) => {
+    const href = $(element).attr('href');
+    const text = $(element).text().trim();
+    
+    if (href) {
+      let fullUrl = href;
+      if (href.startsWith('/')) {
+        const baseUrl = new URL(url);
+        fullUrl = `${baseUrl.protocol}//${baseUrl.host}${href}`;
+      } else if (!href.startsWith('http')) {
+        fullUrl = new URL(href, url).href;
+      }
+      
+      // Get surrounding context for better categorization
+      const parentElement = $(element).parent();
+      const nearbyText = parentElement.text() + ' ' + parentElement.prev().text() + ' ' + parentElement.next().text();
+      
+      // Find the nearest heading for context
+      let sectionHeading = '';
+      const headings = parentElement.prevAll('h1, h2, h3, h4, h5, h6').first();
+      if (headings.length > 0) {
+        sectionHeading = headings.text().trim();
+      }
+      
+      pdfLinks.push({
+        url: fullUrl,
+        text: text || 'PDF Document',
+        nearbyText: nearbyText,
+        sectionHeading: sectionHeading
+      });
+    }
+  });
+
+  // Remove duplicates based on URL
+  const uniqueLinks = pdfLinks.filter((link, index, self) => 
+    index === self.findIndex(l => l.url === link.url)
+  );
+
+  if (uniqueLinks.length === 0) {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        success: true,
+        summary: { total: 0, successful: 0, failed: 0, sections: {} },
+        results: [],
+        message: 'No PDF links found on the specified page'
+      })
+    };
+  }
+
+  console.log(`Found ${uniqueLinks.length} unique PDF links - organizing by sections`);
+
+  const results = [];
+  const errors = [];
+  const sectionCounts = {};
+
+  // Process ALL PDFs with section-based organization
+  for (let i = 0; i < uniqueLinks.length; i++) {
+    const pdfLink = uniqueLinks[i];
+    try {
+      console.log(`Processing PDF ${i + 1}/${uniqueLinks.length}: ${pdfLink.url}`);
+
+      // Generate filename from URL
+      const urlParts = pdfLink.url.split('/');
+      let originalFilename = urlParts[urlParts.length - 1];
+      
+      if (!originalFilename || !originalFilename.includes('.pdf')) {
+        originalFilename = `${sanitizeFilename(pdfLink.text || 'document')}.pdf`;
+      }
+
+      // Categorize the PDF based on content and context
+      const section = categorizeSection(pdfLink.text, pdfLink.url, pdfLink.nearbyText + ' ' + pdfLink.sectionHeading);
+      
+      // Track section counts
+      sectionCounts[section] = (sectionCounts[section] || 0) + 1;
+
+      // Download PDF
+      const pdfResponse = await axios.get(pdfLink.url, {
+        responseType: 'arraybuffer',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; NCDHHS-PDF-Downloader/1.0)',
+          'Accept': 'application/pdf,*/*'
+        },
+        timeout: 30000,
+        maxContentLength: 50 * 1024 * 1024
+      });
+
+      // Verify it's a PDF
+      const contentType = pdfResponse.headers['content-type'] || '';
+      const buffer = Buffer.from(pdfResponse.data);
+      
+      if (!contentType.includes('pdf') && !buffer.toString('hex', 0, 4) === '25504446') {
+        throw new Error(`Invalid file type. Expected PDF, got: ${contentType}`);
+      }
+
+      // Upload to S3 with section-based organization
+      const uploadResult = await uploadToS3(buffer, originalFilename, section);
+
+      results.push({
+        originalUrl: pdfLink.url,
+        filename: originalFilename,
+        linkText: pdfLink.text,
+        section: section,
+        s3Key: uploadResult.key,
+        size: buffer.length,
+        contentType: contentType,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`✅ Successfully processed PDF ${i + 1}/${uniqueLinks.length}: ${originalFilename} → ${section}/`);
+
+    } catch (error) {
+      console.error(`❌ Error processing PDF ${i + 1}/${uniqueLinks.length}:`, error.message);
+      errors.push({
+        url: pdfLink.url,
+        linkText: pdfLink.text,
+        error: error.message
+      });
+    }
+  }
+
+  console.log(`Process completed: ${results.length}/${uniqueLinks.length} PDFs successfully organized into sections`);
+  console.log('Section distribution:', sectionCounts);
+
+  return {
+    statusCode: 200,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify({
+      success: true,
+      summary: {
+        total: uniqueLinks.length,
+        successful: results.length,
+        failed: errors.length,
+        sections: sectionCounts
+      },
+      results: results,
+      errors: errors.length > 0 ? errors : undefined,
+      processedFrom: url,
+      timestamp: new Date().toISOString()
+    })
+  };
 };

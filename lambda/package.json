@@ -1,12 +1,15 @@
 {
   "name": "ncdhhs-pdf-processor-lambda",
-  "version": "1.0.0",
-  "description": "AWS Lambda function to process PDFs from NCDHHS website",
+  "version": "2.0.0",
+  "description": "AWS Lambda function to process PDFs and provide RAG-based Q&A for NCDHHS policies",
   "main": "processPDFs.js",
   "type": "module",
   "dependencies": {
     "axios": "^1.4.0",
     "cheerio": "^1.0.0-rc.12",
-    "@aws-sdk/client-s3": "^3.450.0"
+    "@aws-sdk/client-s3": "^3.450.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.450.0",
+    "@aws-sdk/client-dynamodb": "^3.450.0",
+    "@aws-sdk/lib-dynamodb": "^3.450.0"
   }
 }
