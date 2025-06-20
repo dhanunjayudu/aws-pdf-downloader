@@ -1,7 +1,6 @@
 import { useState } from 'react'
+import { mockProcessPDFs } from './utils/pdfProcessor'
 import './App.css'
-
-// Simplified version - will add backend integration later
 
 function App() {
   const [status, setStatus] = useState('idle')
@@ -14,24 +13,22 @@ function App() {
   const handleDownload = async () => {
     try {
       setStatus('processing')
-      setMessage('🚧 Backend integration coming soon! This is the frontend-only version.')
+      setMessage('Starting PDF download and upload process...')
       setResults(null)
       setProgress('')
       
-      // Simulate processing for demo
-      setTimeout(() => {
-        setStatus('success')
-        setMessage('✅ Frontend deployed successfully! Backend integration will be added next.')
-        setResults({
-          summary: {
-            total: 0,
-            successful: 0,
-            failed: 0
-          },
-          results: [],
-          errors: []
-        })
-      }, 2000)
+      // Use mock function for now - will be replaced with real API
+      const result = await mockProcessPDFs(URL, (progressMessage) => {
+        setProgress(progressMessage)
+      })
+      
+      setStatus('success')
+      setResults(result)
+      setMessage(`✅ Process completed! ${result.summary.successful}/${result.summary.total} PDFs uploaded successfully.`)
+      
+      if (result.summary.failed > 0) {
+        setMessage(prev => prev + ` ${result.summary.failed} PDFs failed to process.`)
+      }
       
     } catch (error) {
       setStatus('error')
@@ -134,7 +131,7 @@ function App() {
 
       <footer>
         <p>Target URL: <a href={URL} target="_blank" rel="noopener noreferrer">{URL}</a></p>
-        <p>Powered by AWS Amplify (Frontend deployed, backend integration coming next)</p>
+        <p>Powered by AWS Amplify (Demo mode - showing simulated results)</p>
       </footer>
     </div>
   )
