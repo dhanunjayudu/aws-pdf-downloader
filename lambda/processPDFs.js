@@ -3,7 +3,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-const s3Client = new S3Client({ region: process.env.AWS_REGION });
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 
 // Helper function to sanitize filename
 const sanitizeFilename = (filename) => {
@@ -13,11 +13,11 @@ const sanitizeFilename = (filename) => {
     .toLowerCase();
 };
 
-// Helper function to upload file to S3
+// Helper function to upload file to S3 with consistent naming
 const uploadToS3 = async (buffer, filename) => {
-  const timestamp = new Date().getTime();
+  // Use the original filename directly, no timestamp prefix
   const sanitizedName = sanitizeFilename(filename);
-  const key = `ncdhhs-pdfs/${timestamp}_${sanitizedName}`;
+  const key = `ncdhhs-pdfs/${sanitizedName}`;
 
   const command = new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME,
@@ -27,7 +27,8 @@ const uploadToS3 = async (buffer, filename) => {
     Metadata: {
       'upload-date': new Date().toISOString(),
       'original-name': filename,
-      'source': 'ncdhhs-policies'
+      'source': 'ncdhhs-policies',
+      'last-updated': new Date().toISOString() // Track when file was last updated
     }
   });
 
@@ -122,11 +123,26 @@ export const handler = async (event) => {
     console.log(`Found ${uniqueLinks.length} unique PDF links, processing up to ${maxPDFs}`);
     const results = [];
     const errors = [];
+    let newFiles = 0;
+    let updatedFiles = 0;
+    let skippedFiles = 0;
 
     for (let i = 0; i < maxPDFs; i++) {
       const pdfLink = uniqueLinks[i];
       try {
         console.log(`Processing PDF ${i + 1}/${maxPDFs}: ${pdfLink.url}`);
+
+        // Generate filename first
+        const urlParts = pdfLink.url.split('/');
+        let originalFilename = urlParts[urlParts.length - 1];
+        
+        // Clean up filename
+        if (!originalFilename || !originalFilename.includes('.pdf')) {
+          originalFilename = `${sanitizeFilename(pdfLink.text || 'document')}.pdf`;
+        }
+
+        const sanitizedName = sanitizeFilename(originalFilename);
+        const s3Key = `ncdhhs-pdfs/${sanitizedName}`;
 
         // Download PDF with timeout and size limit
         const pdfResponse = await axios.get(pdfLink.url, {
@@ -148,16 +164,11 @@ export const handler = async (event) => {
           throw new Error(`Invalid file type. Expected PDF, got: ${contentType}`);
         }
 
-        // Generate filename
-        const urlParts = pdfLink.url.split('/');
-        let originalFilename = urlParts[urlParts.length - 1];
-        
-        // Clean up filename
-        if (!originalFilename || !originalFilename.includes('.pdf')) {
-          originalFilename = `${sanitizeFilename(pdfLink.text || 'document')}.pdf`;
-        }
-        
-        // Upload to S3
+        // For now, treat all files as updates (will overwrite with same name)
+        let updateReason = 'updated with consistent filename';
+        updatedFiles++;
+
+        // Upload to S3 (will overwrite existing file with same name)
         const uploadResult = await uploadToS3(buffer, originalFilename);
 
         results.push({
@@ -166,10 +177,12 @@ export const handler = async (event) => {
           linkText: pdfLink.text,
           s3Key: uploadResult.key,
           size: buffer.length,
-          contentType: contentType
+          contentType: contentType,
+          status: updateReason,
+          timestamp: new Date().toISOString()
         });
 
-        console.log(`✅ Successfully processed PDF ${i + 1}/${maxPDFs}: ${originalFilename}`);
+        console.log(`✅ Successfully processed PDF ${i + 1}/${maxPDFs}: ${originalFilename} (${updateReason})`);
 
       } catch (error) {
         console.error(`❌ Error processing PDF ${i + 1}/${maxPDFs}:`, error.message);
@@ -187,7 +200,10 @@ export const handler = async (event) => {
       summary: {
         total: maxPDFs,
         successful: results.length,
-        failed: errors.length
+        failed: errors.length,
+        newFiles: newFiles,
+        updatedFiles: updatedFiles,
+        refreshedFiles: skippedFiles
       },
       results: results,
       errors: errors.length > 0 ? errors : undefined,
@@ -195,7 +211,7 @@ export const handler = async (event) => {
       timestamp: new Date().toISOString()
     };
 
-    console.log(`Process completed: ${results.length}/${maxPDFs} PDFs successfully uploaded`);
+    console.log(`Process completed: ${results.length}/${maxPDFs} PDFs processed (${newFiles} new, ${updatedFiles} updated, ${skippedFiles} refreshed)`);
 
     return {
       statusCode: 200,
