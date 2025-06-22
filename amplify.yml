@@ -1,0 +1,15 @@
+version: 1
+frontend:
+  phases:
+    build:
+      commands:
+        - echo "Static HTML deployment - no build needed"
+  artifacts:
+    baseDirectory: .
+    files:
+      - index.html
+      - '**/*.css'
+      - '**/*.js'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.gif'
