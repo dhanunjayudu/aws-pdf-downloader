@@ -3,13 +3,8 @@ frontend:
   phases:
     build:
       commands:
-        - echo "FastAPI UI deployment - static HTML with FastAPI backend integration"
+        - echo "FastAPI UI deployment - static HTML"
   artifacts:
     baseDirectory: .
     files:
       - index.html
-      - '**/*.css'
-      - '**/*.js'
-      - '**/*.png'
-      - '**/*.jpg'
-      - '**/*.gif'
